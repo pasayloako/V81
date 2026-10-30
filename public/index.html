@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Selov Search Bold</title>
+  <style>
+    :root { color-scheme: dark; --bg: #0b1020; --card: #151d33; --accent: #8b5cf6; --muted: #aab4cc; --danger: #ef4444; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: Inter, system-ui, sans-serif; background: radial-gradient(circle at top, #20294a, var(--bg) 55%); color: #f8fafc; }
+    .shell { width: min(1100px, 92vw); margin: auto; padding: 48px 0; }
+    header { text-align: center; margin-bottom: 28px; }
+    h1 { margin: 0 0 10px; font-size: clamp(2rem, 5vw, 3.4rem); }
+    .lead, .notice { color: var(--muted); }
+    .notice { max-width: 720px; margin: 18px auto 0; font-size: .9rem; }
+    .search { display: flex; gap: 10px; margin: 30px auto; max-width: 760px; }
+    input, button { border: 0; border-radius: 12px; padding: 14px 16px; font: inherit; }
+    input { flex: 1; background: #202a44; color: white; outline: 1px solid transparent; }
+    input:focus { outline-color: var(--accent); }
+    button { background: var(--accent); color: white; font-weight: 700; cursor: pointer; }
+    button:hover { filter: brightness(1.12); }
+    #status { min-height: 24px; text-align: center; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+    .card { overflow: hidden; background: rgba(21, 29, 51, .92); border: 1px solid #2c3857; border-radius: 16px; box-shadow: 0 12px 32px #0003; }
+    .video { width: 100%; aspect-ratio: 16 / 9; display: block; background: #050814; object-fit: cover; }
+    .content { padding: 16px; }
+    .title { margin: 0 0 14px; line-height: 1.4; font-size: 1rem; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .actions a { display: inline-block; padding: 9px 12px; border-radius: 9px; background: #293653; color: white; text-decoration: none; font-size: .9rem; }
+    .actions a.primary { background: #6d42d9; }
+    footer { margin-top: 42px; text-align: center; color: var(--muted); font-size: .82rem; }
+    .hidden { display: none !important; }
+    .age-gate { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(3, 7, 18, .94); }
+    .age-card { width: min(520px, 100%); padding: 32px; text-align: center; border: 1px solid #3b4a70; border-radius: 20px; background: #11182b; box-shadow: 0 24px 80px #0008; }
+    .age-card h2 { margin-top: 0; font-size: 2rem; }
+    .age-card p { color: var(--muted); line-height: 1.6; }
+    .age-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+    .age-actions button { min-width: 140px; }
+    .exit-button { background: var(--danger); }
+    @media (max-width: 560px) { .search { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <div class="age-gate" id="ageGate" role="dialog" aria-modal="true" aria-labelledby="ageTitle">
+    <section class="age-card">
+      <h2 id="ageTitle">Are you 18 or older?</h2>
+      <p>This website may display sexually explicit, third-party search results. You must be at least 18 years old and legally permitted to view this content in your location.</p>
+      <div class="age-actions">
+        <button type="button" id="enterButton">I am 18+</button>
+        <button type="button" class="exit-button" id="exitButton">I am under 18 / Exit</button>
+      </div>
+    </section>
+  </div>
+
+  <main class="shell hidden" id="siteContent">
+    <header>
+      <h1>Selov Search Bold</h1>
+      <p class="lead">Search and watch results</p>
+      <p class="notice"><strong>18+ only.</strong> Use responsibly, respect copyright and privacy, and comply with all applicable laws.</p>
+    </header>
+
+    <form class="search" id="searchForm">
+      <input id="query" name="q" value="Umaasa" placeholder="Search with Selov Search Bold" autocomplete="off" required />
+      <button type="submit">Sarap Mo Search</button>
+    </form>
+
+    <p id="status" role="status"></p>
+    <section id="results" class="grid" aria-live="polite"></section>
+    <footer>Created by Selov Asx</footer>
+  </main>
+
+  <script>
+    // Proxy endpoint served by index.js — no direct calls to the upstream API
+    const endpoint = '/api/search';
+    const ageGate = document.getElementById('ageGate');
+    const siteContent = document.getElementById('siteContent');
+    const enterButton = document.getElementById('enterButton');
+    const exitButton = document.getElementById('exitButton');
+    const form = document.getElementById('searchForm');
+    const queryInput = document.getElementById('query');
+    const status = document.getElementById('status');
+    const results = document.getElementById('results');
+
+    enterButton.addEventListener('click', () => {
+      ageGate.classList.add('hidden');
+      siteContent.classList.remove('hidden');
+      queryInput.focus();
+    });
+
+    exitButton.addEventListener('click', () => {
+      document.body.innerHTML = '<main style="min-height:100vh;display:grid;place-items:center;padding:24px;text-align:center;font-family:system-ui;background:#0b1020;color:white"><section><h1>Access closed</h1><p>This website is only for adults aged 18 and over.</p></section></main>';
+    });
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+    }
+
+    function safeUrl(value) {
+      try {
+        const url = new URL(String(value || ''), window.location.origin);
+        return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+      } catch {
+        return '';
+      }
+    }
+
+    function render(items) {
+      results.innerHTML = '';
+      if (!Array.isArray(items) || items.length === 0) {
+        status.textContent = 'No results found.';
+        return;
+      }
+      status.textContent = `${items.length} result${items.length === 1 ? '' : 's'} found.`;
+      results.innerHTML = items.map(item => {
+        const videoUrl = safeUrl(item.download_url);
+        const pageUrl = safeUrl(item.url);
+        const posterUrl = safeUrl(item.thumbnail);
+        return `
+          <article class="card">
+            ${videoUrl ? `<video class="video" controls preload="metadata" playsinline poster="${escapeHtml(posterUrl)}"><source src="${escapeHtml(videoUrl)}" type="video/mp4" />Your browser does not support embedded video.</video>` : `<img class="video" src="${escapeHtml(posterUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`}
+            <div class="content">
+              <h2 class="title">${escapeHtml(item.title || 'Untitled result')}</h2>
+              <div class="actions">
+                ${pageUrl ? `<a class="primary" href="${escapeHtml(pageUrl)}" target="_blank" rel="noopener noreferrer">Open result</a>` : ''}
+                ${videoUrl ? `<a href="${escapeHtml(videoUrl)}" target="_blank" rel="noopener noreferrer">Open video</a>` : ''}
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function search(query) {
+      status.textContent = 'Loading…';
+      results.innerHTML = '';
+      try {
+        const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+        const data = await response.json();
+        if (data.status === false) throw new Error(data.message || 'The API returned an error.');
+        render(data.results);
+      } catch (error) {
+        status.textContent = `Could not load results: ${error.message}`;
+      }
+    }
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const query = queryInput.value.trim();
+      if (query) search(query);
+    });
+  </script>
+</body>
+</html>
